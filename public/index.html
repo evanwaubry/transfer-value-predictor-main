@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Touchline | Player Intelligence</title>
+<meta name="theme-color" content="#05070b">
+<meta name="description" content="Touchline — an obsidian HUD for Premier League player valuation intelligence and live football data.">
+<title>Touchline | Player Intelligence HUD</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -15,10 +18,16 @@
 
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark">⚽</div>
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 1.6 21 6.4v11.2L12 22.4 3 17.6V6.4z" stroke="#34d399" stroke-width="1.4" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="3.4" stroke="#22d3ee" stroke-width="1.4"/>
+          <path d="M12 5.2v3.4M12 15.4v3.4M5.6 8.6l3 1.7M15.4 13.7l3 1.7M18.4 8.6l-3 1.7M8.6 13.7l-3 1.7" stroke="#fbbf24" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
       <div>
         <div class="brand-title">TOUCHLINE</div>
-        <div class="brand-sub">Player Intelligence / Premier League</div>
+        <div class="brand-sub">Player Intelligence · PL</div>
       </div>
     </div>
 
@@ -78,10 +87,16 @@
         <div class="eyebrow" id="statusBadge">SCOUTING WORKSPACE</div>
         <h1>Read the game. Question the price.</h1>
         <p>Explore performance, compare player profiles, and test how well the numbers explain listed market values.</p>
+        <div class="hud-readout">
+          <div>MODEL · <b>RIDGE</b></div>
+          <div>FEATURES · <b>5</b></div>
+          <div>TARGET · <b>TRANSFER VALUE EUR</b></div>
+          <div>SIGNAL · <b>HELD-OUT</b></div>
+        </div>
       </div>
       <div id="dataNotice"></div>
 
-      <div id="loadingState" class="loading">Loading demo dataset…</div>
+      <div id="loadingState" class="loading">Loading demo dataset</div>
       <div id="errorState" class="error-box" style="display:none"></div>
 
       <div id="resultsWrap" style="display:none">
@@ -101,7 +116,7 @@
             <div class="card">
               <div class="card-head">
                 <h3>The valuation landscape</h3>
-                <span class="muted">Above the line: model estimate exceeds listed value.</span>
+                <span class="muted small">Above the line: model estimate exceeds listed value.</span>
               </div>
               <canvas id="scatterChart" height="320"></canvas>
             </div>

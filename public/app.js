@@ -1,9 +1,18 @@
-/* Touchline web dashboard — talks to /api/analyze and /api/live (Vercel Python functions). */
+/* Touchline web dashboard — talks to /api/analyze and /api/live (Vercel Python functions).
+   Obsidian HUD theme: emerald + cyan + gold. */
 'use strict';
 
-const COLORS = { Attacker: '#6ee7b7', Midfielder: '#7ea9ff', Defender: '#c4a0ff', Goalkeeper: '#ffc978' };
+const COLORS = { Attacker: '#34d399', Midfielder: '#22d3ee', Defender: '#fbbf24', Goalkeeper: '#a78bfa' };
 const POSITIONS = ['Attacker', 'Midfielder', 'Defender', 'Goalkeeper'];
 const TARGET = 'transfer_value_eur';
+
+/* Shared chart styling for the dark HUD */
+const CHART_GRID = '#161f2c';
+const CHART_TICK = '#8493a8';
+const CHART_AXIS = '#7f8da3';
+Chart.defaults.color = CHART_TICK;
+Chart.defaults.font.family = "'JetBrains Mono', ui-monospace, monospace";
+Chart.defaults.font.size = 11;
 
 const state = {
   rows: [], metrics: null, warnings: [], model: null, usingDemo: true, lastCsvText: null,
@@ -14,6 +23,87 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const money = (v) => (v === null || v === undefined || Number.isNaN(v)) ? '\u2014' : `\u20ac${(v / 1e6).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}m`;
 const pct = (v) => (v === null || v === undefined || Number.isNaN(v)) ? '\u2014' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ================= CLUB IDENTITY ================= */
+/* Stylized deterministic crests built from each club's authentic colours + monogram.
+   These are generated badges (not official trademarked crests), so they stay self-contained,
+   render instantly, and require no external image hosting. */
+const CLUBS = {
+  'Arsenal': ['ARS', '#EF0107', '#FFFFFF'],
+  'Aston Villa': ['AVL', '#95BFE5', '#670E36'],
+  'Bournemouth': ['BOU', '#DA291C', '#000000'],
+  'AFC Bournemouth': ['BOU', '#DA291C', '#000000'],
+  'Brentford': ['BRE', '#E30613', '#FBB800'],
+  'Brighton & Hove Albion': ['BHA', '#0057B8', '#FFCD00'],
+  'Brighton and Hove Albion': ['BHA', '#0057B8', '#FFCD00'],
+  'Brighton': ['BHA', '#0057B8', '#FFCD00'],
+  'Burnley': ['BUR', '#6C1D45', '#99D6EA'],
+  'Chelsea': ['CHE', '#034694', '#FFFFFF'],
+  'Crystal Palace': ['CRY', '#1B458F', '#C4122E'],
+  'Everton': ['EVE', '#003399', '#FFFFFF'],
+  'Fulham': ['FUL', '#000000', '#FFFFFF'],
+  'Ipswich Town': ['IPS', '#3A64A3', '#DE2C37'],
+  'Leeds United': ['LEE', '#FFCD00', '#1D428A'],
+  'Leicester City': ['LEI', '#003090', '#FDBE11'],
+  'Liverpool': ['LIV', '#C8102E', '#00B2A9'],
+  'Luton Town': ['LUT', '#F78F1E', '#002D62'],
+  'Manchester City': ['MCI', '#6CABDD', '#1C2C5B'],
+  'Manchester United': ['MUN', '#DA291C', '#FBE122'],
+  'Newcastle United': ['NEW', '#241F20', '#FFFFFF'],
+  'Nottingham Forest': ['NFO', '#DD0000', '#FFFFFF'],
+  'Sheffield United': ['SHU', '#EE2737', '#000000'],
+  'Southampton': ['SOU', '#D71920', '#FFFFFF'],
+  'Tottenham Hotspur': ['TOT', '#132257', '#FFFFFF'],
+  'West Ham United': ['WHU', '#7A263A', '#1BB1E7'],
+  'Wolverhampton Wanderers': ['WOL', '#FDB913', '#231F20'],
+  'Wolves': ['WOL', '#FDB913', '#231F20'],
+};
+const IDENTITY_FALLBACK = ['#34d399', '#22d3ee', '#fbbf24', '#a78bfa', '#fb7185', '#60a5fa', '#f97316', '#4ade80'];
+
+function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; } return Math.abs(h); }
+
+function clubIdentity(team) {
+  const known = CLUBS[team];
+  if (known) return { code: known[0], primary: known[1], secondary: known[2] };
+  const words = String(team || '?').replace(/[^A-Za-z ]/g, '').trim().split(/\s+/);
+  const code = (words.length >= 2 ? words[0][0] + words[1][0] + (words[1][1] || words[0][1] || '') : (team || '??').slice(0, 3)).toUpperCase();
+  const h = hashStr(team || 'x');
+  return { code, primary: IDENTITY_FALLBACK[h % IDENTITY_FALLBACK.length], secondary: IDENTITY_FALLBACK[(h >> 3) % IDENTITY_FALLBACK.length] };
+}
+
+function crestSVG(team, size = 30) {
+  const { code, primary, secondary } = clubIdentity(team);
+  const id = 'g' + hashStr(team + primary);
+  return `<svg class="crest" width="${size}" height="${size}" viewBox="0 0 40 44" role="img" aria-label="${esc(team)} badge">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${primary}"/><stop offset="1" stop-color="${primary}" stop-opacity="0.72"/>
+    </linearGradient></defs>
+    <path d="M4 4 H36 V23 C36 33 28.5 39.5 20 42 C11.5 39.5 4 33 4 23 Z" fill="url(#${id})" stroke="${secondary}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M4 15 H36" stroke="${secondary}" stroke-width="1.4" opacity="0.55"/>
+    <text x="20" y="14" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="8.5" font-weight="700" fill="${secondary}">${esc(code)}</text>
+  </svg>`;
+}
+
+function avatarSVG(name, position, size = 34) {
+  const initials = String(name || '?').split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const c = COLORS[position] || '#34d399';
+  const id = 'a' + hashStr(name + position);
+  return `<svg class="avatar" width="${size}" height="${size}" viewBox="0 0 40 40" role="img" aria-label="${esc(name)}">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${c}" stop-opacity="0.9"/><stop offset="1" stop-color="${c}" stop-opacity="0.4"/>
+    </linearGradient></defs>
+    <rect width="40" height="40" rx="10" fill="#0b0f17" stroke="${c}" stroke-width="1.3"/>
+    <rect width="40" height="40" rx="10" fill="url(#${id})" opacity="0.22"/>
+    <text x="20" y="25" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="600" fill="${c}">${esc(initials)}</text>
+  </svg>`;
+}
+
+function idCell(row) {
+  return `<div class="id-cell">${crestSVG(row.team, 28)}
+    <div class="id-text"><span class="id-name">${esc(row.name)}</span>
+    <span class="id-meta">${esc(row.team)} · ${row.season}</span></div></div>`;
+}
 
 /* ---------------- CSV export helpers ---------------- */
 function csvEscape(v) {
@@ -68,7 +158,7 @@ wireTabs('liveTabBar', 'livetab', 'live-');
 async function runAnalysis(csvText) {
   state.lastCsvText = csvText;
   $('loadingState').style.display = '';
-  $('loadingState').textContent = 'Validating data and evaluating held-out predictions\u2026';
+  $('loadingState').textContent = 'Validating data and evaluating held-out predictions';
   $('errorState').style.display = 'none';
   $('resultsWrap').style.display = 'none';
   try {
@@ -112,6 +202,7 @@ function initFiltersFromData() {
   POSITIONS.forEach((p) => {
     const chip = document.createElement('button');
     chip.className = 'chip active'; chip.type = 'button'; chip.textContent = p;
+    chip.style.setProperty('--chip', COLORS[p]);
     chip.addEventListener('click', () => {
       if (state.filters.positions.has(p)) state.filters.positions.delete(p); else state.filters.positions.add(p);
       chip.classList.toggle('active');
@@ -122,7 +213,7 @@ function initFiltersFromData() {
 
   const clubs = [...new Set(state.rows.map((r) => r.team))].sort();
   const clubSelect = $('clubFilter');
-  clubSelect.innerHTML = '<option value="">All clubs</option>' + clubs.map((c) => `<option value="${c}">${c}</option>`).join('');
+  clubSelect.innerHTML = '<option value="">All clubs</option>' + clubs.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   state.filters.club = '';
 
   const scPosition = $('scPosition');
@@ -187,16 +278,17 @@ function renderOverview(filtered) {
       data: plotted.filter((r) => r.position === p).map((r) => ({ x: r[TARGET] / 1e6, y: r.predicted_value_eur / 1e6, name: r.name, season: r.season, team: r.team })),
       backgroundColor: COLORS[p],
       pointRadius: 5,
+      pointHoverRadius: 7,
     }));
     const peak = Math.max(...plotted.map((r) => Math.max(r[TARGET], r.predicted_value_eur))) / 1e6 * 1.06;
-    datasets.push({ label: 'Parity', type: 'line', data: [{ x: 0, y: 0 }, { x: peak, y: peak }], borderColor: '#62758c', borderDash: [5, 5], pointRadius: 0, borderWidth: 1.5 });
+    datasets.push({ label: 'Parity', type: 'line', data: [{ x: 0, y: 0 }, { x: peak, y: peak }], borderColor: '#4b5c72', borderDash: [5, 5], pointRadius: 0, borderWidth: 1.5 });
     state.charts.scatter = new Chart(scatterCtx, {
       type: 'scatter', data: { datasets },
       options: {
-        plugins: { legend: { labels: { color: '#acbdd0' } }, tooltip: { callbacks: { label: (ctx) => ctx.raw.name ? `${ctx.raw.name} (${ctx.raw.season}, ${ctx.raw.team})` : 'Parity line' } } },
+        plugins: { legend: { labels: { color: '#c2cddb', usePointStyle: true } }, tooltip: { callbacks: { label: (ctx) => ctx.raw.name ? `${ctx.raw.name} (${ctx.raw.season}, ${ctx.raw.team})` : 'Parity line' } } },
         scales: {
-          x: { title: { display: true, text: 'Listed market value (\u20acm)', color: '#9aacc1' }, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } },
-          y: { title: { display: true, text: 'Held-out model estimate (\u20acm)', color: '#9aacc1' }, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } },
+          x: { title: { display: true, text: 'Listed market value (\u20acm)', color: CHART_AXIS }, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } },
+          y: { title: { display: true, text: 'Held-out model estimate (\u20acm)', color: CHART_AXIS }, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } },
         },
       },
     });
@@ -209,14 +301,14 @@ function renderOverview(filtered) {
     type: 'bar',
     data: {
       labels: top.map((r) => `${r.name} \u00b7 ${r.season}`),
-      datasets: [{ data: top.map((r) => r.gap_eur / 1e6), backgroundColor: top.map((r) => COLORS[r.position]) }],
+      datasets: [{ data: top.map((r) => r.gap_eur / 1e6), backgroundColor: top.map((r) => COLORS[r.position]), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y',
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw >= 0 ? '+' : ''}${ctx.raw.toFixed(2)}m` } } },
       scales: {
-        x: { title: { display: true, text: 'Estimate \u2212 listed value (\u20acm)', color: '#9aacc1' }, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } },
-        y: { grid: { display: false }, ticks: { color: '#acbdd0' } },
+        x: { title: { display: true, text: 'Estimate \u2212 listed value (\u20acm)', color: CHART_AXIS }, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } },
+        y: { grid: { display: false }, ticks: { color: CHART_TICK } },
       },
     },
   });
@@ -233,18 +325,18 @@ function sortRows(rows, mode) {
 
 function renderTable(filtered) {
   const sorted = sortRows(filtered, $('sortSelect').value);
-  const cols = [
-    ['Name', 'name'], ['Team', 'team'], ['Position', 'position'], ['Season', 'season'], ['Age', 'age'],
-    ['Apps', 'appearances'], ['Goals', 'goals'], ['Assists', 'assists'],
-    ['Listed \u20ac', TARGET], ['Held-out estimate \u20ac', 'predicted_value_eur'], ['Gap %', 'gap_pct'],
-  ];
-  $('scoutTable').querySelector('thead').innerHTML = '<tr>' + cols.map((c) => `<th>${c[0]}</th>`).join('') + '</tr>';
-  $('scoutTable').querySelector('tbody').innerHTML = sorted.map((r) => `<tr>
-    <td>${r.name}</td><td>${r.team}</td><td>${r.position}</td><td>${r.season}</td><td>${r.age}</td>
-    <td>${r.appearances}</td><td>${r.goals}</td><td>${r.assists}</td>
-    <td>\u20ac${Math.round(r[TARGET]).toLocaleString()}</td>
-    <td>${r.predicted_value_eur == null ? '\u2014' : '\u20ac' + Math.round(r.predicted_value_eur).toLocaleString()}</td>
-    <td>${pct(r.gap_pct)}</td></tr>`).join('');
+  const cols = ['Player', 'Position', 'Age', 'Apps', 'Goals', 'Assists', 'Listed \u20ac', 'Held-out estimate \u20ac', 'Gap %'];
+  $('scoutTable').querySelector('thead').innerHTML = '<tr>' + cols.map((c) => `<th>${c}</th>`).join('') + '</tr>';
+  $('scoutTable').querySelector('tbody').innerHTML = sorted.map((r) => {
+    const gapCls = r.gap_pct == null ? '' : (r.gap_pct >= 0 ? 'pos-pos' : 'pos-neg');
+    return `<tr>
+    <td>${idCell(r)}</td>
+    <td><span class="pos-tag" style="color:${COLORS[r.position]}">${r.position}</span></td>
+    <td class="num">${r.age}</td><td class="num">${r.appearances}</td><td class="num">${r.goals}</td><td class="num">${r.assists}</td>
+    <td class="num">\u20ac${Math.round(r[TARGET]).toLocaleString()}</td>
+    <td class="num">${r.predicted_value_eur == null ? '\u2014' : '\u20ac' + Math.round(r.predicted_value_eur).toLocaleString()}</td>
+    <td class="num ${gapCls}">${pct(r.gap_pct)}</td></tr>`;
+  }).join('');
   $('exportTable').onclick = () => exportCsv(sorted, [
     { key: 'name', label: 'name' }, { key: 'team', label: 'team' }, { key: 'position', label: 'position' },
     { key: 'season', label: 'season' }, { key: 'age', label: 'age' }, { key: 'appearances', label: 'appearances' },
@@ -262,7 +354,7 @@ function renderDossierOptions(filtered) {
     $('dossierBody').innerHTML = '<p class="hint">Broaden the sidebar filters to select a player.</p>';
     return;
   }
-  select.innerHTML = filtered.map((r, i) => `<option value="${state.rows.indexOf(r)}">${labelFor(r)}</option>`).join('');
+  select.innerHTML = filtered.map((r) => `<option value="${state.rows.indexOf(r)}">${esc(labelFor(r))}</option>`).join('');
   select.onchange = () => renderDossier(Number(select.value));
   if (state.dossierIndex === null || !filtered.some((r) => state.rows.indexOf(r) === state.dossierIndex)) {
     state.dossierIndex = Number(select.value);
@@ -292,8 +384,11 @@ function renderDossier(idx) {
   const posWarning = ['Defender', 'Goalkeeper'].includes(row.position)
     ? '<div class="notice warn">This feature set lacks defensive and shot-stopping data. Treat this position\u2019s estimate with particular caution.</div>' : '';
   body.innerHTML = `
-    <div class="dossier-header">${row.name}</div>
-    <div class="dossier-sub">${row.team} \u00b7 ${row.position} \u00b7 ${row.age} years old \u00b7 ${row.appearances} appearances</div>
+    <div class="dossier-id">
+      ${crestSVG(row.team, 52)}${avatarSVG(row.name, row.position, 52)}
+      <div><div class="dossier-header">${esc(row.name)}</div>
+      <div class="dossier-sub">${esc(row.team)} \u00b7 <span style="color:${COLORS[row.position]}">${row.position}</span> \u00b7 ${row.age} yrs \u00b7 ${row.appearances} apps</div></div>
+    </div>
     <div class="dossier-metrics">
       <div class="kpi"><div class="label">LISTED VALUE</div><div class="value">${money(row[TARGET])}</div></div>
       <div class="kpi"><div class="label">HELD-OUT ESTIMATE</div><div class="value">${money(row.predicted_value_eur)}</div></div>
@@ -305,7 +400,7 @@ function renderDossier(idx) {
       <div><h4>Position &amp; season context</h4><canvas id="dossierChart" height="220"></canvas></div>
       <div><h4>Profile details</h4>
         <table><thead><tr><th>Metric</th><th>Player</th><th>Peer median</th><th>Percentile</th></tr></thead>
-        <tbody>${values.map((v) => `<tr><td>${v.metric}</td><td>${v.player}</td><td>${v.peerMedian}</td><td>${v.percentile.toFixed(1)}</td></tr>`).join('')}</tbody></table>
+        <tbody>${values.map((v) => `<tr><td>${v.metric}</td><td class="num">${v.player}</td><td class="num">${v.peerMedian}</td><td class="num">${v.percentile.toFixed(1)}</td></tr>`).join('')}</tbody></table>
         <p class="hint">Compared with ${peers.length} rows in the same position and season, including this player.</p>
       </div>
     </div>
@@ -313,11 +408,11 @@ function renderDossier(idx) {
   destroyChart('dossier');
   state.charts.dossier = new Chart($('dossierChart').getContext('2d'), {
     type: 'bar',
-    data: { labels: values.map((v) => v.metric), datasets: [{ data: values.map((v) => v.percentile), backgroundColor: '#6ee7b7' }] },
+    data: { labels: values.map((v) => v.metric), datasets: [{ data: values.map((v) => v.percentile), backgroundColor: COLORS[row.position], borderRadius: 4 }] },
     options: {
       indexAxis: 'y',
       plugins: { legend: { display: false } },
-      scales: { x: { min: 0, max: 100, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } }, y: { grid: { display: false }, ticks: { color: '#acbdd0' } } },
+      scales: { x: { min: 0, max: 100, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } }, y: { grid: { display: false }, ticks: { color: CHART_TICK } } },
     },
   });
   $('exportPlayer').onclick = () => exportCsv([row], Object.keys(row).map((k) => ({ key: k, label: k })), 'player-report.csv');
@@ -355,18 +450,18 @@ function renderCompareTable() {
   }
   const rows = state.compareSelection.map((i) => state.rows[i]);
   const fields = [['Position', 'position'], ['Age', 'age'], ['Appearances', 'appearances'], ['Goals', 'goals'], ['Assists', 'assists'], ['Listed \u20ac', TARGET], ['Held-out estimate \u20ac', 'predicted_value_eur'], ['Gap %', 'gap_pct']];
-  table.innerHTML = '<thead><tr><th></th>' + rows.map((r) => `<th>${labelFor(r)}</th>`).join('') + '</tr></thead><tbody>' +
-    fields.map(([label, key]) => `<tr><td>${label}</td>` + rows.map((r) => `<td>${key === TARGET || key === 'predicted_value_eur' ? money(r[key]) : (key === 'gap_pct' ? pct(r[key]) : r[key])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  table.innerHTML = '<thead><tr><th></th>' + rows.map((r) => `<th>${idCell(r)}</th>`).join('') + '</tr></thead><tbody>' +
+    fields.map(([label, key]) => `<tr><td>${label}</td>` + rows.map((r) => `<td class="num">${key === TARGET || key === 'predicted_value_eur' ? money(r[key]) : (key === 'gap_pct' ? pct(r[key]) : r[key])}</td>`).join('') + '</tr>').join('') + '</tbody>';
   state.charts.compare = new Chart($('compareChart').getContext('2d'), {
     type: 'bar',
     data: {
       labels: rows.map(labelFor),
       datasets: [
-        { label: 'Listed', data: rows.map((r) => r[TARGET] / 1e6), backgroundColor: '#7ea9ff' },
-        { label: 'Predicted', data: rows.map((r) => (r.predicted_value_eur ?? 0) / 1e6), backgroundColor: '#6ee7b7' },
+        { label: 'Listed', data: rows.map((r) => r[TARGET] / 1e6), backgroundColor: '#22d3ee', borderRadius: 4 },
+        { label: 'Predicted', data: rows.map((r) => (r.predicted_value_eur ?? 0) / 1e6), backgroundColor: '#34d399', borderRadius: 4 },
       ],
     },
-    options: { plugins: { legend: { labels: { color: '#acbdd0' } } }, scales: { x: { ticks: { color: '#acbdd0' } }, y: { title: { display: true, text: '\u20acm', color: '#9aacc1' }, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } } } },
+    options: { plugins: { legend: { labels: { color: '#c2cddb', usePointStyle: true } } }, scales: { x: { ticks: { color: CHART_TICK } }, y: { title: { display: true, text: '\u20acm', color: CHART_AXIS }, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } } } },
   });
 }
 
@@ -381,7 +476,7 @@ function renderDiagnostics() {
   const improvement = m.baseline_mae_eur ? (1 - m.mae_eur / m.baseline_mae_eur) * 100 : null;
   const notices = [];
   if (improvement !== null && improvement <= 0) notices.push('<div class="notice warn">The model does not outperform the simple position-median baseline on these validation splits.</div>');
-  state.warnings.forEach((w) => notices.push(`<div class="notice warn">${w}</div>`));
+  state.warnings.forEach((w) => notices.push(`<div class="notice warn">${esc(w)}</div>`));
   notices.push($('strategySelect').value === 'Player-held-out'
     ? '<div class="notice info">All seasons of each tested player stay outside that fold\u2019s training data. This estimates generalization to unseen players, not forecasting future seasons.</div>'
     : '<div class="notice info">Each season is tested using only earlier seasons. The earliest season is training-only.</div>');
@@ -395,12 +490,12 @@ function renderDiagnostics() {
   }).filter((g) => g.n > 0);
   state.charts.posError = new Chart($('positionErrorChart').getContext('2d'), {
     type: 'bar',
-    data: { labels: grouped.map((g) => g.p), datasets: [{ data: grouped.map((g) => g.mae / 1e6), backgroundColor: grouped.map((g) => COLORS[g.p]) }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#acbdd0' } }, y: { title: { display: true, text: 'Held-out MAE (\u20acm)', color: '#9aacc1' }, grid: { color: '#243043' }, ticks: { color: '#acbdd0' } } } },
+    data: { labels: grouped.map((g) => g.p), datasets: [{ data: grouped.map((g) => g.mae / 1e6), backgroundColor: grouped.map((g) => COLORS[g.p]), borderRadius: 4 }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: CHART_TICK } }, y: { title: { display: true, text: 'Held-out MAE (\u20acm)', color: CHART_AXIS }, grid: { color: CHART_GRID }, ticks: { color: CHART_TICK } } } },
   });
 
   $('foldsTable').innerHTML = '<thead><tr><th>Fold</th><th>Train rows</th><th>Test rows</th><th>MAE \u20ac</th></tr></thead><tbody>' +
-    m.folds.map((f) => `<tr><td>${f.fold}</td><td>${f.train_rows}</td><td>${f.test_rows}</td><td>\u20ac${Math.round(f.mae_eur).toLocaleString()}</td></tr>`).join('') + '</tbody>';
+    m.folds.map((f) => `<tr><td>${f.fold}</td><td class="num">${f.train_rows}</td><td class="num">${f.test_rows}</td><td class="num">\u20ac${Math.round(f.mae_eur).toLocaleString()}</td></tr>`).join('') + '</tbody>';
 
   $('downloadSummary').onclick = () => downloadText(JSON.stringify(m, null, 2), 'evaluation-summary.json', 'application/json');
   $('downloadAll').onclick = () => exportCsv(state.rows, Object.keys(state.rows[0]).map((k) => ({ key: k, label: k })), 'held-out-predictions.csv');
@@ -491,17 +586,17 @@ $('loadMatches').addEventListener('click', async () => {
   else if (mode === 'next') { start = new Date(today); start.setDate(start.getDate() + 1); end = new Date(today); end.setDate(end.getDate() + 7); }
   else { start = new Date($('customStart').value); end = new Date($('customEnd').value); }
   if (!start.getTime() || !end.getTime()) { $('matchesResult').innerHTML = '<div class="notice warn">Select both a start and end date.</div>'; return; }
-  $('matchesResult').innerHTML = '<div class="loading">Contacting football-data.org\u2026</div>';
+  $('matchesResult').innerHTML = '<div class="loading">Contacting football-data.org</div>';
   try {
     const res = await fetch(`/api/live?action=matches&start=${isoDate(start)}&end=${isoDate(end)}`);
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to load matches.');
     lastMatches = data.rows;
     const clubs = [...new Set(lastMatches.flatMap((m) => [m.home, m.away]))].sort();
-    $('matchClubFilter').innerHTML = '<option>All clubs</option>' + clubs.map((c) => `<option>${c}</option>`).join('');
+    $('matchClubFilter').innerHTML = '<option>All clubs</option>' + clubs.map((c) => `<option>${esc(c)}</option>`).join('');
     renderMatches();
   } catch (err) {
-    $('matchesResult').innerHTML = `<div class="notice error">${err.message}</div>`;
+    $('matchesResult').innerHTML = `<div class="notice error">${esc(err.message)}</div>`;
   }
 });
 $('matchClubFilter').addEventListener('change', renderMatches);
@@ -523,13 +618,17 @@ function renderMatches() {
   $('matchesResult').innerHTML = `<div class="kpi-row"><div class="kpi"><div class="label">MATCHES IN VIEW</div><div class="value">${visible.length}</div></div>
     <div class="kpi"><div class="label">FINISHED</div><div class="value">${visible.filter((m) => m.status === 'FINISHED').length}</div></div></div>` +
     visible.map((m) => `<div class="match-card">
-      <div class="match-row"><strong>${m.home}</strong><span class="score">${m.score}</span><strong>${m.away}</strong></div>
+      <div class="match-row">
+        <div class="match-side">${crestSVG(m.home, 30)}<strong>${esc(m.home)}</strong></div>
+        <span class="score">${esc(m.score)}</span>
+        <div class="match-side away">${crestSVG(m.away, 30)}<strong>${esc(m.away)}</strong></div>
+      </div>
       <div class="match-meta">${new Date(m.utc_date).toUTCString().slice(0, 22)} UTC \u00b7 ${(m.status || '').replace('_', ' ')} \u00b7 Matchday ${m.matchday ?? '\u2014'}</div>
     </div>`).join('');
 }
 
 $('loadScorers').addEventListener('click', async () => {
-  $('scorersResult').innerHTML = '<div class="loading">Contacting football-data.org\u2026</div>';
+  $('scorersResult').innerHTML = '<div class="loading">Contacting football-data.org</div>';
   try {
     const res = await fetch('/api/live?action=scorers');
     const data = await res.json();
@@ -537,7 +636,7 @@ $('loadScorers').addEventListener('click', async () => {
     window._scorers = data.rows;
     renderScorers();
   } catch (err) {
-    $('scorersResult').innerHTML = `<div class="notice error">${err.message}</div>`;
+    $('scorersResult').innerHTML = `<div class="notice error">${esc(err.message)}</div>`;
   }
 });
 $('scorerSearch').addEventListener('input', renderScorers);
@@ -545,18 +644,18 @@ function renderScorers() {
   const rows = (window._scorers || []).filter((r) => r.name.toLowerCase().includes($('scorerSearch').value.toLowerCase()));
   if (!rows.length) { $('scorersResult').innerHTML = '<p class="hint">Load the latest available scorer data from your API account.</p>'; return; }
   $('scorersResult').innerHTML = `<div class="table-scroll"><table><thead><tr><th>Name</th><th>Team</th><th>Season</th><th>Position</th><th>Goals</th><th>Assists</th><th>Apps</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr><td>${r.name}</td><td>${r.team}</td><td>${r.season}</td><td>${r.position}</td><td>${r.goals ?? '\u2014'}</td><td>${r.assists ?? '\u2014'}</td><td>${r.appearances ?? '\u2014'}</td></tr>`).join('')}</tbody></table></div>`;
+    <tbody>${rows.map((r) => `<tr><td>${esc(r.name)}</td><td><div class="id-cell">${crestSVG(r.team, 24)}<span>${esc(r.team)}</span></div></td><td>${r.season}</td><td>${esc(r.position)}</td><td class="num">${r.goals ?? '\u2014'}</td><td class="num">${r.assists ?? '\u2014'}</td><td class="num">${r.appearances ?? '\u2014'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 $('testConnection').addEventListener('click', async () => {
-  $('testResult').innerHTML = '<div class="loading">Contacting football-data.org\u2026</div>';
+  $('testResult').innerHTML = '<div class="loading">Contacting football-data.org</div>';
   try {
     const res = await fetch('/api/live?action=test');
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Connection failed.');
-    $('testResult').innerHTML = `<div class="notice info">Connected to ${data.name}. Provider season: ${data.season_start ?? 'unknown'} to ${data.season_end ?? 'unknown'}.</div>`;
+    $('testResult').innerHTML = `<div class="notice info">Connected to ${esc(data.name)}. Provider season: ${data.season_start ?? 'unknown'} to ${data.season_end ?? 'unknown'}.</div>`;
   } catch (err) {
-    $('testResult').innerHTML = `<div class="notice error">${err.message}</div>`;
+    $('testResult').innerHTML = `<div class="notice error">${esc(err.message)}</div>`;
   }
 });
 

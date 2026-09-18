@@ -6,4 +6,3 @@ requirements-dev.txt
 .env.example
 app.py
 model.joblib
-main.py

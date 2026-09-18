@@ -1,0 +1,41 @@
+name,position,age,team,season,appearances,goals,assists,transfer_value_eur,data_kind
+Erling Haaland,Attacker,24,Manchester City,2024,26,15,7,61365000.0,synthetic
+Mohamed Salah,Attacker,32,Liverpool,2024,23,13,5,37321000.0,synthetic
+Bukayo Saka,Attacker,23,Arsenal,2024,35,8,5,42731000.0,synthetic
+Cole Palmer,Attacker,23,Chelsea,2024,23,8,9,43355000.0,synthetic
+Ollie Watkins,Attacker,28,Aston Villa,2024,33,14,1,46149000.0,synthetic
+Alexander Isak,Attacker,25,Newcastle United,2024,33,14,5,40978000.0,synthetic
+Son Heung-min,Attacker,32,Tottenham Hotspur,2024,37,15,4,42216000.0,synthetic
+Phil Foden,Midfielder,25,Manchester City,2024,19,3,8,25270000.0,synthetic
+Martin Odegaard,Midfielder,26,Arsenal,2024,22,4,6,23183000.0,synthetic
+Declan Rice,Midfielder,26,Arsenal,2024,17,8,9,37962000.0,synthetic
+Bruno Fernandes,Midfielder,30,Manchester United,2024,21,4,5,21192000.0,synthetic
+Rodri,Midfielder,28,Manchester City,2024,36,2,9,23733000.0,synthetic
+Kevin De Bruyne,Midfielder,33,Manchester City,2024,31,2,7,20153000.0,synthetic
+Moises Caicedo,Midfielder,23,Chelsea,2024,31,3,10,31036000.0,synthetic
+James Maddison,Midfielder,28,Tottenham Hotspur,2024,32,11,6,48954000.0,synthetic
+Youri Tielemans,Midfielder,27,Aston Villa,2024,19,6,2,26987000.0,synthetic
+Trent Alexander-Arnold,Defender,26,Liverpool,2024,34,0,3,17901000.0,synthetic
+William Saliba,Defender,23,Arsenal,2024,33,1,0,16979000.0,synthetic
+Virgil van Dijk,Defender,33,Liverpool,2024,37,1,3,14865000.0,synthetic
+Reece James,Defender,25,Chelsea,2024,36,2,1,25125000.0,synthetic
+Levi Colwill,Defender,21,Chelsea,2024,21,5,0,22125000.0,synthetic
+Gabriel Magalhaes,Defender,26,Arsenal,2024,34,1,3,16460000.0,synthetic
+Kieran Trippier,Defender,34,Newcastle United,2024,35,3,3,17188000.0,synthetic
+Ben Chilwell,Defender,27,Chelsea,2024,16,1,1,13527000.0,synthetic
+Alisson Becker,Goalkeeper,32,Liverpool,2024,28,0,0,9224000.0,synthetic
+Ederson,Goalkeeper,31,Manchester City,2024,18,0,0,8220000.0,synthetic
+David Raya,Goalkeeper,29,Arsenal,2024,25,0,0,9817000.0,synthetic
+Jordan Pickford,Goalkeeper,30,Everton,2024,17,0,0,8186000.0,synthetic
+Nick Pope,Goalkeeper,32,Newcastle United,2024,19,0,0,7693000.0,synthetic
+Bernardo Silva,Midfielder,30,Manchester City,2024,19,7,5,24214000.0,synthetic
+Jarrod Bowen,Attacker,27,West Ham United,2024,22,16,10,66444000.0,synthetic
+Anthony Gordon,Attacker,23,Newcastle United,2024,26,12,5,38981000.0,synthetic
+Morgan Rogers,Midfielder,22,Aston Villa,2024,26,7,10,43061000.0,synthetic
+Chris Wood,Attacker,33,Nottingham Forest,2024,34,13,8,36285000.0,synthetic
+Justin Kluivert,Attacker,25,Bournemouth,2024,30,9,5,39447000.0,synthetic
+Amad Diallo,Attacker,22,Manchester United,2024,27,15,4,57964000.0,synthetic
+Matheus Cunha,Attacker,25,Manchester United,2024,37,11,7,53156000.0,synthetic
+Cody Gakpo,Attacker,25,Liverpool,2024,18,11,11,36789000.0,synthetic
+Dominik Szoboszlai,Midfielder,24,Liverpool,2024,23,2,8,25769000.0,synthetic
+Antoine Semenyo,Attacker,25,Bournemouth,2024,37,10,6,40248000.0,synthetic

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touchline | Player Intelligence</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">⚽</div>
+      <div>
+        <div class="brand-title">TOUCHLINE</div>
+        <div class="brand-sub">Player Intelligence / Premier League</div>
+      </div>
+    </div>
+
+    <div class="workspace-toggle" id="workspaceToggle">
+      <button class="ws-btn active" data-workspace="valuation">Valuation workspace</button>
+      <button class="ws-btn" data-workspace="live">Live football</button>
+    </div>
+
+    <div id="valuationControls" class="sidebar-section">
+      <hr>
+      <label class="field-label">Dataset</label>
+      <select id="datasetSource" class="field">
+        <option value="demo">Demo · synthetic data</option>
+        <option value="upload">Upload CSV…</option>
+      </select>
+      <input type="file" id="csvUpload" accept=".csv" class="field" style="display:none">
+
+      <label class="field-label">Validation method</label>
+      <select id="strategySelect" class="field">
+        <option value="Player-held-out">Player-held-out</option>
+        <option value="Forward by season">Forward by season</option>
+      </select>
+      <p class="hint">Player-held-out excludes every season of each tested player. Forward evaluation trains on earlier seasons and tests later seasons.</p>
+
+      <button id="runAnalysis" class="btn-primary">Run analysis</button>
+
+      <hr>
+      <label class="field-label">Search players</label>
+      <input id="searchInput" class="field" placeholder="Search a name…">
+
+      <label class="field-label">Seasons</label>
+      <div id="seasonFilters" class="chip-group"></div>
+
+      <label class="field-label">Positions</label>
+      <div id="positionFilters" class="chip-group"></div>
+
+      <label class="field-label">Club</label>
+      <select id="clubFilter" class="field"><option value="">All clubs</option></select>
+
+      <label class="field-label">Minimum appearances: <span id="minAppsValue">0</span></label>
+      <input id="minAppsSlider" type="range" min="0" max="42" value="0" class="field">
+
+      <hr>
+      <div id="sidebarStats" class="sidebar-stats"></div>
+      <p class="hint">Fixed ridge regression · 5 core features · EUR</p>
+    </div>
+
+    <div id="liveControls" class="sidebar-section" style="display:none">
+      <hr>
+      <p class="hint">Live football uses your own football-data.org API key, configured server-side as a Vercel environment variable. It is independent of the valuation dataset.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="valuationView">
+      <div class="hero">
+        <div class="eyebrow" id="statusBadge">SCOUTING WORKSPACE</div>
+        <h1>Read the game. Question the price.</h1>
+        <p>Explore performance, compare player profiles, and test how well the numbers explain listed market values.</p>
+      </div>
+      <div id="dataNotice"></div>
+
+      <div id="loadingState" class="loading">Loading demo dataset…</div>
+      <div id="errorState" class="error-box" style="display:none"></div>
+
+      <div id="resultsWrap" style="display:none">
+        <div class="kpi-row" id="kpiRow"></div>
+
+        <div class="tabs" id="tabBar">
+          <button class="tab active" data-tab="overview">Market overview</button>
+          <button class="tab" data-tab="table">Scouting table</button>
+          <button class="tab" data-tab="dossier">Player dossier</button>
+          <button class="tab" data-tab="compare">Compare players</button>
+          <button class="tab" data-tab="lab">Scenario lab</button>
+          <button class="tab" data-tab="diagnostics">Model &amp; data quality</button>
+        </div>
+
+        <section class="tab-panel active" id="panel-overview">
+          <div class="panel-grid">
+            <div class="card">
+              <div class="card-head">
+                <h3>The valuation landscape</h3>
+                <span class="muted">Above the line: model estimate exceeds listed value.</span>
+              </div>
+              <canvas id="scatterChart" height="320"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Largest model disagreements</h3></div>
+              <canvas id="gapChart" height="320"></canvas>
+            </div>
+          </div>
+          <p class="muted small">Disagreement is a research lead, not evidence that a player is underpriced or overpriced.</p>
+        </section>
+
+        <section class="tab-panel" id="panel-table">
+          <div class="card">
+            <div class="card-head">
+              <h3>Scouting table</h3>
+              <select id="sortSelect" class="field small">
+                <option value="value_desc">Listed value</option>
+                <option value="gap_pos">Largest positive gap</option>
+                <option value="gap_neg">Largest negative gap</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+            <div class="table-scroll"><table id="scoutTable"><thead></thead><tbody></tbody></table></div>
+            <button id="exportTable" class="btn-secondary">Export filtered analysis (CSV)</button>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-dossier">
+          <div class="card">
+            <h3>A closer look</h3>
+            <select id="dossierSelect" class="field"></select>
+            <div id="dossierBody"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-compare">
+          <div class="card">
+            <h3>Side-by-side scouting</h3>
+            <p class="hint">Choose up to four player-seasons from the current filters.</p>
+            <div id="compareChips" class="chip-group"></div>
+            <div class="table-scroll"><table id="compareTable"></table></div>
+            <canvas id="compareChart" height="280"></canvas>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-lab">
+          <div class="card">
+            <h3>Explore a hypothetical profile</h3>
+            <p class="hint">This uses the final model fitted on all rows. It is exploratory and is not a held-out accuracy test.</p>
+            <form id="scenarioForm" class="scenario-form">
+              <div class="scenario-grid">
+                <label>Position
+                  <select id="scPosition" class="field"></select>
+                </label>
+                <label>Age: <span id="scAgeVal">24</span>
+                  <input id="scAge" type="range" min="16" max="40" value="24" class="field">
+                </label>
+                <label>League appearances: <span id="scAppsVal">25</span>
+                  <input id="scApps" type="range" min="0" max="42" value="25" class="field">
+                </label>
+                <label>Goals: <span id="scGoalsVal">10</span>
+                  <input id="scGoals" type="range" min="0" max="50" value="10" class="field">
+                </label>
+                <label>Assists: <span id="scAssistsVal">8</span>
+                  <input id="scAssists" type="range" min="0" max="35" value="8" class="field">
+                </label>
+                <label>Comparison value (€ millions)
+                  <input id="scListed" type="number" min="0" step="1" value="30" class="field">
+                </label>
+              </div>
+              <button type="submit" class="btn-primary">Estimate this profile</button>
+            </form>
+            <div id="scenarioResult"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-diagnostics">
+          <div class="card">
+            <h3>Evidence before confidence</h3>
+            <div class="kpi-row" id="diagKpis"></div>
+            <p class="muted small">MAE = mean absolute error. RMSE penalizes large errors. Negative R² means worse than a constant test-set mean reference.</p>
+            <div id="diagWarnings"></div>
+            <div class="panel-grid">
+              <div>
+                <h4>Error by position</h4>
+                <canvas id="positionErrorChart" height="260"></canvas>
+              </div>
+              <div>
+                <h4>Validation folds</h4>
+                <div class="table-scroll"><table id="foldsTable"></table></div>
+              </div>
+            </div>
+            <details class="details-box">
+              <summary>Data contract &amp; next data to collect</summary>
+              <p>Required: name, position, team, season, age, appearances, goals, assists, transfer_value_eur. One row per player per season; values in whole EUR.</p>
+              <p>Add stable player_id, stats_as_of, valuation_date, value_source, and data_kind. Start with historical, date-aligned market values and complete league coverage; then minutes, xG/xA, defensive and goalkeeper stats, contract months and injury availability.</p>
+              <p>Extra performance columns are retained in exports but are not silently added to the model. Extending the feature set requires validation and a fresh evaluation.</p>
+            </details>
+            <div class="button-row">
+              <button id="downloadSummary" class="btn-secondary">Download evaluation summary (JSON)</button>
+              <button id="downloadAll" class="btn-secondary">Download all held-out predictions (CSV)</button>
+              <button id="downloadTemplate" class="btn-secondary">Download CSV template</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="liveView" style="display:none">
+      <div class="hero">
+        <div class="eyebrow">TOUCHLINE / LIVE FOOTBALL</div>
+        <h1>The week in football.</h1>
+        <p>Premier League results, fixtures and the latest available scoring leaderboard.</p>
+      </div>
+      <p class="muted small">On-demand data · Free-plan scores may be delayed · Dates and kickoff times use UTC · Independent of the valuation dataset</p>
+
+      <div class="tabs" id="liveTabBar">
+        <button class="tab active" data-livetab="matches">Recent matches</button>
+        <button class="tab" data-livetab="scorers">Current-season stats</button>
+        <button class="tab" data-livetab="setup">API setup</button>
+      </div>
+
+      <section class="tab-panel active" id="live-matches">
+        <div class="card">
+          <div class="scenario-grid">
+            <label>Date window
+              <select id="matchWindow" class="field">
+                <option value="past">Past week</option>
+                <option value="next">Next week</option>
+                <option value="custom">Custom range</option>
+              </select>
+            </label>
+            <label id="customStartWrap" style="display:none">Start date
+              <input id="customStart" type="date" class="field">
+            </label>
+            <label id="customEndWrap" style="display:none">End date
+              <input id="customEnd" type="date" class="field">
+            </label>
+          </div>
+          <button id="loadMatches" class="btn-primary">Load / refresh matches</button>
+          <div class="scenario-grid" style="margin-top:14px">
+            <label>Club
+              <select id="matchClubFilter" class="field"><option>All clubs</option></select>
+            </label>
+            <label>Match status
+              <select id="matchStatusFilter" class="field">
+                <option>All statuses</option>
+                <option>Finished</option>
+                <option>Upcoming</option>
+                <option>In progress</option>
+                <option>Postponed / cancelled</option>
+              </select>
+            </label>
+          </div>
+          <div id="matchesResult"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="live-scorers">
+        <div class="card">
+          <p class="hint">The API identifies the season automatically. This is a scorers sample, not full Premier League player coverage.</p>
+          <button id="loadScorers" class="btn-primary">Load / refresh current-season stats</button>
+          <input id="scorerSearch" class="field" placeholder="Find a scorer" style="margin-top:12px">
+          <div id="scorersResult"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="live-setup">
+        <div class="card">
+          <h3>Connect your football-data.org account</h3>
+          <ol>
+            <li>Create a free account at <a href="https://www.football-data.org/client/register" target="_blank" rel="noopener">football-data.org</a> and obtain your API token.</li>
+            <li>In your Vercel project, go to <strong>Settings → Environment Variables</strong>.</li>
+            <li>Add a variable named <code>FOOTBALL_DATA_API_KEY</code> with your token as the value, then redeploy.</li>
+          </ol>
+          <p class="hint">The key never reaches the browser — it's read server-side by the <code>/api/live</code> function.</p>
+          <button id="testConnection" class="btn-secondary">Test API connection</button>
+          <div id="testResult"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.streamlit
+tests
+scripts
+requirements-dev.txt
+.env
+.env.example
+app.py
+model.joblib
